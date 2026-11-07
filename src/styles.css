@@ -1,0 +1,27 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap');
+
+:root {
+	color-scheme: light;
+	--saffron: #c94f16;
+	--saffron-deep: #a63d11;
+	--maroon: #70263a;
+	--leaf: #36705a;
+	--gold: #d3a64b;
+	--ink: #292820;
+	--muted: #77756b;
+	--paper: #f7f4ec;
+	--line: #e7e1d5;
+	--white: #fffefa;
+	font-family: 'DM Sans', sans-serif;
+	background: var(--paper);
+	color: var(--ink);
+	font-synthesis: none;
+	text-rendering: optimizeLegibility;
+	-webkit-font-smoothing: antialiased;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; min-height: 100vh; }
+button, input, select, textarea { font: inherit; }
+button { cursor: pointer; }
+img { display: block; max-width: 100%; }

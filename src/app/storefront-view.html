@@ -1,0 +1,198 @@
+<div class="store-shell">
+  <div class="announcement">
+    <span>✦</span> Thoughtful essentials for every sacred moment
+    <span class="announcement-note">Free delivery on orders over ₹499</span>
+  </div>
+
+  <header class="site-header">
+    <a class="brand" href="#store" (click)="$event.preventDefault(); setView('store')" aria-label="Poojapa Store home">
+      <span class="brand-mark">ॐ</span>
+      <span><strong>Poojapa</strong><small>VEDIC & SPIRITUAL ESSENTIALS</small></span>
+    </a>
+    <nav class="desktop-nav" aria-label="Main navigation">
+      <button [class.active]="view() === 'store'" (click)="setView('store')">The store</button>
+      <button [class.active]="view() === 'categories'" (click)="setView('categories')">Categories</button>
+      <button [class.active]="view() === 'orders'" (click)="user() ? setView('orders') : openAuth('login')">My orders</button>
+      @if (isAdmin()) {
+        <button [class.active]="view().startsWith('admin')" (click)="setView('admin')">Admin</button>
+      }
+    </nav>
+    <div class="header-actions">
+      <label class="header-search">
+        <span aria-hidden="true">⌕</span>
+        <input aria-label="Search the store" placeholder="Search essentials" [ngModel]="search()" (ngModelChange)="onSearchChange($event)">
+      </label>
+      @if (user()) {
+        <button class="account-button" (click)="setView('profile')" [attr.aria-label]="'Account for ' + user()?.name">{{ user()?.name?.slice(0, 1) }}</button>
+      } @else {
+        <button class="text-action" (click)="openAuth('login')">Sign in</button>
+      }
+      <button class="bag-button" (click)="setView('cart')" aria-label="Open cart"><span aria-hidden="true">▱</span><span class="bag-count">{{ cartCount() }}</span></button>
+    </div>
+  </header>
+  <label class="mobile-search"><span aria-hidden="true">⌕</span><input aria-label="Search the store" placeholder="Search pooja essentials" [ngModel]="search()" (ngModelChange)="onSearchChange($event)"></label>
+
+  <main>
+    @if (error()) {
+      <div class="notice error-notice" role="alert"><span>{{ error() }}</span><button aria-label="Dismiss" (click)="error.set('')">×</button></div>
+    }
+
+    @if (view() === 'store') {
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow"><span></span> MADE FOR MEANINGFUL RITUALS</p>
+          <h1>Bring a little<br><em>reverence</em> home.</h1>
+          <p class="hero-description">Everyday pooja essentials, chosen with care and made to be part of your family's traditions.</p>
+          <div class="hero-actions">
+            <button class="button button-light" (click)="setView('categories')">Explore the collection <span>↗</span></button>
+            <span class="hero-note">A calmer way to prepare for the sacred.</span>
+          </div>
+          <div class="hero-proof"><span class="proof-seal">✦</span><span><strong>Rooted in tradition</strong><small>Selected for your daily practice</small></span></div>
+        </div>
+        <div class="hero-art" role="img" aria-label="A warm arrangement of lamps and flowers for a pooja ritual">
+          <img class="hero-product-image" src="https://upload.wikimedia.org/wikipedia/commons/4/43/%281%29_Aarti_Thali%2C_Prayer_Plate_India.jpg" alt="Aarti thali with diyas, flowers, and incense" (error)="hideImage($event)">
+          <span class="art-caption">A moment<br>of stillness</span>
+          <a class="art-index" href="https://commons.wikimedia.org/wiki/File:(1)_Aarti_Thali,_Prayer_Plate_India.jpg" target="_blank" rel="noopener">Aarti thali photo · Pramal · CC BY 2.0</a>
+        </div>
+        <div class="hero-edge-note">PRACTICE · PRESENCE · PEACE</div>
+      </section>
+
+      <section class="collection-wrap">
+        <div class="section-heading category-heading">
+          <div><p class="eyebrow">FIND YOUR RITUAL</p><h2>Shop by category</h2></div>
+          <button class="arrow-link" (click)="setView('categories')">All categories <span>↗</span></button>
+        </div>
+        @if (categories().length) {
+          <div class="category-rail">
+            @for (category of categories().slice(0, 7); track category.id; let i = $index) {
+              <button class="category-item" (click)="selectCategory(category.id)">
+                <span class="category-icon" [class]="'category-icon tone-' + (i % 5)">{{ ['◈', '✺', '❋', '◉', '✧'][i % 5] }}</span>
+                <span class="category-name">{{ category.name }}</span><small>{{ category.product_count ?? 0 }} items</small>
+              </button>
+            }
+          </div>
+        } @else {
+          <div class="empty-inline">Categories will appear here when the store API is connected.</div>
+        }
+
+        <div class="section-heading product-heading" id="products">
+          <div><p class="eyebrow">THE POOJAPA EDIT</p><h2>{{ search() ? 'Search results' : selectedCategoryId() ? 'Selected collection' : 'Sacred essentials' }}</h2></div>
+          <div class="product-tools">
+            @if (selectedCategoryId()) { <button class="clear-filter" (click)="selectCategory(null)">Clear filter ×</button> }
+            <label class="sort-control"><span>Sort by</span><select [ngModel]="sort()" (ngModelChange)="sort.set($event); loadProducts()"><option value="featured">Featured</option><option value="newest">Newest</option><option value="price_asc">Price: low to high</option><option value="price_desc">Price: high to low</option></select></label>
+          </div>
+        </div>
+        @if (loading() && !products().length) {
+          <div class="loading-state"><span class="spinner"></span> Opening the collection…</div>
+        } @else if (products().length) {
+          <div class="product-grid">
+            @for (product of products(); track product.id) {
+              <article class="product-card">
+                <button class="product-image" (click)="selectedProduct.set(product)" [attr.aria-label]="'View ' + product.name">
+                  @if (imageUrl(product)) { <img [src]="imageUrl(product)" [alt]="product.name" (error)="hideImage($event)"> }
+                  @if (product.is_featured) { <span class="product-badge">THE DAILY EDIT</span> }
+                  @if (!product.stock_quantity) { <span class="stock-badge">SOLD OUT</span> }
+                  <span class="quick-view">View details ↗</span>
+                </button>
+                <div class="product-meta"><small>{{ product.category_name || 'POOJAPA ESSENTIALS' }}</small><span>{{ product.unit || 'piece' }}</span></div>
+                <button class="product-name" (click)="selectedProduct.set(product)">{{ product.name }}</button>
+                <p class="product-description">{{ product.description || 'A considered essential for your home altar and daily practice.' }}</p>
+                <div class="product-buy-row">
+                  <div class="price-stack"><strong>{{ priceOf(product) | currency:'INR':'symbol':'1.0-0' }}</strong>@if (priceOf(product) < product.price) { <del>{{ product.price | currency:'INR':'symbol':'1.0-0' }}</del> }</div>
+                  <button class="add-button" [disabled]="!product.stock_quantity" (click)="addToCart(product)" [attr.aria-label]="'Add ' + product.name + ' to cart'">+</button>
+                </div>
+              </article>
+            }
+          </div>
+        } @else {
+          <div class="empty-state"><span class="empty-symbol">✧</span><h3>{{ error() ? 'The collection is resting' : 'Nothing here just yet' }}</h3><p>{{ error() ? 'Check your API connection and try again.' : 'Try another search or clear the selected category.' }}</p><button class="button button-outline" (click)="loadProducts()">Refresh collection</button></div>
+        }
+      </section>
+    }
+
+    @if (view() === 'categories') {
+      <section class="page-section"><div class="page-title"><p class="eyebrow">EXPLORE THE COLLECTION</p><h1>Categories</h1><p>Browse the considered essentials for your home altar and daily practice.</p></div>
+        <div class="category-grid">
+          @for (category of categories(); track category.id; let i = $index) {
+            <button class="category-tile" (click)="selectCategory(category.id)"><span class="category-icon" [class]="'category-icon tone-' + (i % 5)">{{ ['◈', '✺', '❋', '◉', '✧'][i % 5] }}</span><span><strong>{{ category.name }}</strong><small>{{ category.product_count ?? 0 }} pieces in the collection</small></span><b>↗</b></button>
+          } @empty { <p class="empty-inline">No categories are available yet.</p> }
+        </div>
+      </section>
+    }
+
+    @if (view() === 'cart') {
+      <section class="page-section"><div class="page-title"><p class="eyebrow">A THOUGHTFUL SELECTION</p><h1>Your pooja cart</h1><p>{{ cartCount() }} {{ cartCount() === 1 ? 'piece' : 'pieces' }} selected for your home.</p></div>
+        @if (cart().length) {
+          <div class="checkout-layout"><div class="line-items">
+            @for (line of cart(); track line.product.id) {
+              <article class="cart-line"><div class="cart-image">@if (imageUrl(line.product)) { <img [src]="imageUrl(line.product)" [alt]="line.product.name" (error)="hideImage($event)"> }</div><div class="cart-product"><small>{{ line.product.category_name || 'POOJAPA ESSENTIALS' }}</small><h3>{{ line.product.name }}</h3><span>{{ line.product.unit || 'piece' }}</span></div><div class="quantity-control"><button (click)="changeQuantity(line.product.id, -1)" aria-label="Decrease quantity">−</button><span>{{ line.quantity }}</span><button (click)="changeQuantity(line.product.id, 1)" [disabled]="line.quantity >= line.product.stock_quantity" aria-label="Increase quantity">+</button></div><strong class="line-price">{{ priceOf(line.product) * line.quantity | currency:'INR':'symbol':'1.0-0' }}</strong><button class="remove-button" (click)="removeFromCart(line.product.id)" [attr.aria-label]="'Remove ' + line.product.name">×</button></article>
+            }
+          </div><aside class="order-summary"><p class="eyebrow">ORDER SUMMARY</p><h2>Almost yours</h2><div class="summary-row"><span>Subtotal</span><strong>{{ subtotal() | currency:'INR':'symbol':'1.0-0' }}</strong></div><div class="summary-row"><span>Delivery</span><strong>{{ deliveryFee() ? (deliveryFee() | currency:'INR':'symbol':'1.0-0') : 'Complimentary' }}</strong></div><div class="summary-total"><span>Total</span><strong>{{ total() | currency:'INR':'symbol':'1.0-0' }}</strong></div><small class="delivery-note">{{ subtotal() >= 499 ? 'Complimentary delivery applied.' : 'Add ' + (499 - subtotal() | currency:'INR':'symbol':'1.0-0') + ' for complimentary delivery.' }}</small><button class="button button-primary full-button" (click)="continueToCheckout()">Continue to checkout <span>→</span></button><button class="back-link" (click)="setView('store')">← Continue browsing</button></aside></div>
+        } @else { <div class="empty-state"><span class="empty-symbol">▱</span><h3>Your cart is waiting</h3><p>Find something meaningful for your next ritual.</p><button class="button button-primary" (click)="setView('store')">Browse the collection <span>↗</span></button></div> }
+      </section>
+    }
+
+    @if (view() === 'checkout') {
+      <section class="page-section"><div class="page-title"><p class="eyebrow">SECURE CHECKOUT</p><h1>Delivery details</h1><p>Your order will be prepared with care.</p></div>
+        <form class="checkout-layout" (ngSubmit)="placeOrder()"><div class="form-section"><h2>Where should we send it?</h2><div class="form-grid">
+          <label class="field field-wide">Recipient name<input name="shipping_name" [(ngModel)]="shipping.shipping_name" required autocomplete="name"></label>
+          <label class="field">Phone number<input name="shipping_phone" [(ngModel)]="shipping.shipping_phone" required autocomplete="tel" inputmode="tel"></label>
+          <label class="field">Pincode<input name="shipping_pincode" [(ngModel)]="shipping.shipping_pincode" required inputmode="numeric" autocomplete="postal-code"></label>
+          <label class="field field-wide">Street address<textarea name="shipping_address" [(ngModel)]="shipping.shipping_address" required rows="3" autocomplete="street-address"></textarea></label>
+          <label class="field">City<input name="shipping_city" [(ngModel)]="shipping.shipping_city" required autocomplete="address-level2"></label>
+          <label class="field">State<input name="shipping_state" [(ngModel)]="shipping.shipping_state" autocomplete="address-level1"></label>
+          <label class="field field-wide">Notes for the delivery team <span class="optional">Optional</span><textarea name="notes" [(ngModel)]="shipping.notes" rows="2"></textarea></label>
+        </div><div class="payment-choice"><span class="payment-icon">₹</span><span><strong>Cash on delivery</strong><small>Pay when your order arrives</small></span><span class="radio-selected">●</span></div></div>
+        <aside class="order-summary"><p class="eyebrow">YOUR ORDER</p><h2>{{ cartCount() }} {{ cartCount() === 1 ? 'piece' : 'pieces' }}</h2>@for (line of cart(); track line.product.id) { <div class="summary-row"><span>{{ line.product.name }} × {{ line.quantity }}</span><strong>{{ priceOf(line.product) * line.quantity | currency:'INR':'symbol':'1.0-0' }}</strong></div> }<div class="summary-row"><span>Delivery</span><strong>{{ deliveryFee() ? (deliveryFee() | currency:'INR':'symbol':'1.0-0') : 'Complimentary' }}</strong></div><div class="summary-total"><span>Total due</span><strong>{{ total() | currency:'INR':'symbol':'1.0-0' }}</strong></div><button class="button button-primary full-button" type="submit" [disabled]="submitting() || !cart().length">{{ submitting() ? 'Placing order…' : 'Place order · ' + (total() | currency:'INR':'symbol':'1.0-0') }}</button><small class="secure-note">Your order is confirmed by the Poojapa Store API.</small></aside></form>
+      </section>
+    }
+
+    @if (view() === 'orders') {
+      <section class="page-section"><div class="page-title"><p class="eyebrow">YOUR POJAPA ACCOUNT</p><h1>My orders</h1><p>A record of the moments you've made space for.</p></div>
+        @if (!user()) { <div class="empty-state"><h3>Sign in to see your orders</h3><button class="button button-primary" (click)="openAuth('login')">Sign in <span>→</span></button></div> }
+        @else if (orders().length) { <div class="order-list">@for (order of orders(); track order.id) { <article class="order-card"><div class="order-card-top"><div><small>ORDER PLACED</small><strong>{{ order.created_at | date:'mediumDate' }}</strong></div><div><small>ORDER NUMBER</small><strong>{{ order.order_number }}</strong></div><span class="status-pill" [attr.data-status]="order.order_status">{{ order.order_status }}</span></div><div class="order-card-bottom"><span>{{ order.items?.length ?? 0 }} items · {{ order.payment_method || 'Cash on Delivery' }}</span><strong>{{ order.final_amount | currency:'INR':'symbol':'1.0-0' }}</strong></div></article> }</div> }
+        @else { <div class="empty-state"><span class="empty-symbol">✧</span><h3>Your story starts here</h3><p>Orders you place will appear here.</p><button class="button button-primary" (click)="setView('store')">Return to the store <span>↗</span></button></div> }
+      </section>
+    }
+
+    @if (view() === 'profile') {
+      <section class="page-section"><div class="page-title"><p class="eyebrow">YOUR POJAPA ACCOUNT</p><h1>Account</h1></div>
+        @if (user()) { <div class="profile-panel"><div class="profile-avatar">{{ user()?.name?.slice(0, 1) }}</div><div><p class="eyebrow">{{ isAdmin() ? 'STORE ADMINISTRATOR' : 'POOJAPA CUSTOMER' }}</p><h2>{{ user()?.name }}</h2><p>{{ user()?.email }}</p><p>{{ user()?.phone || 'No phone number saved' }}</p><p>{{ user()?.address || 'No saved address' }}</p><div class="profile-actions"><button class="button button-outline" (click)="setView('orders')">View my orders</button>@if (isAdmin()) { <button class="button button-outline" (click)="setView('admin')">Admin dashboard</button> }<button class="text-action" (click)="logout()">Sign out</button></div></div></div> }
+        @else { <div class="empty-state"><h3>Welcome to Poojapa</h3><p>Sign in to manage your account and orders.</p><button class="button button-primary" (click)="openAuth('login')">Sign in <span>→</span></button></div> }
+      </section>
+    }
+
+    @if (view() === 'admin') {
+      <section class="page-section admin-section"><div class="page-title admin-title"><div><p class="eyebrow">POOJAPA STORE · OPERATIONS</p><h1>Business overview</h1><p>Sales and inventory, at a glance.</p></div><div class="admin-shortcuts"><button class="button button-outline" (click)="setView('admin-products')">Manage products</button><button class="button button-primary" (click)="setView('admin-orders')">Manage orders <span>→</span></button></div></div>
+        @if (stats(); as summary) { <div class="metric-grid"><article class="metric metric-revenue"><small>TOTAL REVENUE</small><strong>{{ summary.total_revenue | currency:'INR':'symbol':'1.0-0' }}</strong><span>Across non-cancelled orders</span></article><article class="metric"><small>TOTAL ORDERS</small><strong>{{ summary.total_orders }}</strong><span>Customer orders placed</span></article><article class="metric"><small>ACTIVE DEVOTEES</small><strong>{{ summary.total_customers }}</strong><span>Registered customers</span></article><article class="metric"><small>POOJA ITEMS</small><strong>{{ summary.total_products }}</strong><span>{{ summary.low_stock_count }} low in stock</span></article></div>
+          <div class="admin-columns"><section class="admin-table-section"><div class="section-heading"><div><p class="eyebrow">LATEST ACTIVITY</p><h2>Recent orders</h2></div><button class="arrow-link" (click)="setView('admin-orders')">All orders ↗</button></div>@for (order of adminOrders(); track order.id) { <article class="compact-order"><div><strong>{{ order.customer_name || 'Customer' }}</strong><small>{{ order.order_number }} · {{ order.created_at | date:'mediumDate' }}</small></div><span class="status-pill" [attr.data-status]="order.order_status">{{ order.order_status }}</span><strong>{{ order.final_amount | currency:'INR':'symbol':'1.0-0' }}</strong></article> } @empty { <p class="empty-inline">No recent orders.</p> }</section>
+          <section class="low-stock-section"><p class="eyebrow">INVENTORY WATCH</p><h2>Running low</h2>@for (product of summary.low_stock_products ?? []; track product.id) { <div class="stock-row"><span>{{ product.name }}</span><strong>{{ product.stock_quantity }} left</strong></div> } @empty { <p class="empty-inline">Everything is well stocked.</p> }</section></div>
+        } @else { <div class="loading-state"><span class="spinner"></span> Loading store metrics…</div> }
+      </section>
+    }
+
+    @if (view() === 'admin-orders') {
+      <section class="page-section admin-section"><div class="page-title admin-title"><div><p class="eyebrow">POOJAPA STORE · OPERATIONS</p><h1>Customer orders</h1><p>Review and update fulfillment status.</p></div><button class="button button-outline" (click)="loadAdminOrders()">Refresh orders ↻</button></div>
+        <div class="admin-order-list">@for (order of adminOrders(); track order.id) { <article class="admin-order"><div class="admin-order-customer"><strong>{{ order.customer_name || 'Customer' }}</strong><small>{{ order.customer_email }}</small></div><div class="admin-order-ref"><strong>{{ order.order_number }}</strong><small>{{ order.created_at | date:'mediumDate' }} · {{ order.items?.length ?? 0 }} items</small></div><strong class="admin-order-total">{{ order.final_amount | currency:'INR':'symbol':'1.0-0' }}</strong><label class="status-select"><span>Status</span><select [value]="order.order_status" (change)="updateOrderStatus(order, $any($event.target).value)"><option value="pending">Pending</option><option value="confirmed">Confirmed</option><option value="processing">Processing</option><option value="shipped">Shipped</option><option value="delivered">Delivered</option><option value="cancelled">Cancelled</option></select></label></article> } @empty { <div class="empty-state"><h3>No orders yet</h3><p>Customer orders will appear here.</p></div> }</div>
+      </section>
+    }
+
+    @if (view() === 'admin-products') {
+      <section class="page-section admin-section"><div class="page-title admin-title"><div><p class="eyebrow">POOJAPA STORE · CATALOG</p><h1>Manage products</h1><p>Add a piece or keep your collection up to date.</p></div><button class="button button-outline" (click)="setView('admin')">← Dashboard</button></div>
+        <form class="product-form" (ngSubmit)="createProduct()"><h2>Add a product</h2><div class="form-grid"><label class="field">Product name<input name="product_name" [(ngModel)]="productDraft.name" required></label><label class="field">Category<select name="category_id" [(ngModel)]="productDraft.category_id" required><option [ngValue]="null" disabled>Select category</option>@for (category of categories(); track category.id) { <option [ngValue]="category.id">{{ category.name }}</option> }</select></label><label class="field">Price (₹)<input type="number" name="price" [(ngModel)]="productDraft.price" min="1" required></label><label class="field">Sale price (₹)<input type="number" name="discount_price" [(ngModel)]="productDraft.discount_price" min="0"></label><label class="field">Stock quantity<input type="number" name="stock_quantity" [(ngModel)]="productDraft.stock_quantity" min="0"></label><label class="field">Unit<input name="unit" [(ngModel)]="productDraft.unit"></label><label class="field field-wide">Image URL<input type="url" name="image_url" [(ngModel)]="productDraft.image_url" placeholder="https://…"></label><label class="field field-wide">Description<textarea name="description" [(ngModel)]="productDraft.description" rows="2"></textarea></label><label class="check-field"><input type="checkbox" name="featured" [(ngModel)]="productDraft.is_featured"> Feature in the store</label></div><button class="button button-primary" type="submit" [disabled]="submitting()">{{ submitting() ? 'Saving…' : 'Add product' }} <span>→</span></button></form>
+        <div class="admin-products-list"><div class="section-heading"><div><p class="eyebrow">LIVE CATALOG</p><h2>{{ products().length }} products</h2></div></div>@for (product of products(); track product.id) { <article class="admin-product-row"><div><strong>{{ product.name }}</strong><small>{{ product.category_name || 'Uncategorized' }} · {{ product.stock_quantity }} in stock</small></div><strong>{{ priceOf(product) | currency:'INR':'symbol':'1.0-0' }}</strong><button class="remove-button" (click)="deleteProduct(product)" [attr.aria-label]="'Delete ' + product.name">×</button></article> }</div>
+      </section>
+    }
+  </main>
+
+  <footer class="site-footer"><a class="brand footer-brand" href="#store" (click)="$event.preventDefault(); setView('store')"><span class="brand-mark">ॐ</span><span><strong>Poojapa</strong><small>VEDIC & SPIRITUAL ESSENTIALS</small></span></a><span>Made for meaningful rituals.</span><span>© Poojapa Store</span></footer>
+  <nav class="mobile-nav" aria-label="Mobile navigation"><button [class.active]="view() === 'store'" (click)="setView('store')"><span>⌂</span>Store</button><button [class.active]="view() === 'categories'" (click)="setView('categories')"><span>◈</span>Explore</button><button [class.active]="view() === 'cart'" (click)="setView('cart')"><span>▱<i>{{ cartCount() }}</i></span>Cart</button><button [class.active]="view() === 'orders'" (click)="user() ? setView('orders') : openAuth('login')"><span>≡</span>Orders</button><button [class.active]="view() === 'profile'" (click)="setView('profile')"><span>○</span>Account</button></nav>
+
+  @if (selectedProduct(); as product) {
+    <div class="overlay" (click)="selectedProduct.set(null)" (keydown.escape)="selectedProduct.set(null)"><section class="product-dialog" role="dialog" aria-modal="true" [attr.aria-label]="product.name" (click)="$event.stopPropagation()"><button class="dialog-close" (click)="selectedProduct.set(null)" aria-label="Close details">×</button><div class="dialog-image">@if (imageUrl(product)) { <img [src]="imageUrl(product)" [alt]="product.name" (error)="hideImage($event)"> }</div><div class="dialog-copy"><p class="eyebrow">{{ product.category_name || 'POOJAPA ESSENTIALS' }}</p><h2>{{ product.name }}</h2><p>{{ product.description || 'A considered essential for your home altar and daily practice.' }}</p><div class="dialog-price">{{ priceOf(product) | currency:'INR':'symbol':'1.0-0' }} @if (priceOf(product) < product.price) { <del>{{ product.price | currency:'INR':'symbol':'1.0-0' }}</del> }</div><small>{{ product.stock_quantity ? product.stock_quantity + ' available' : 'Currently unavailable' }}</small><button class="button button-primary full-button" [disabled]="!product.stock_quantity" (click)="addToCart(product); selectedProduct.set(null)">Add to cart <span>→</span></button></div></section></div>
+  }
+  @if (showAuth()) {
+    <div class="overlay" (click)="showAuth.set(false)" (keydown.escape)="showAuth.set(false)"><section class="auth-dialog" role="dialog" aria-modal="true" aria-labelledby="auth-title" (click)="$event.stopPropagation()"><button class="dialog-close" (click)="showAuth.set(false)" aria-label="Close sign in">×</button><span class="auth-mark">ॐ</span><p class="eyebrow">WELCOME TO POOJAPA</p><h2 id="auth-title">{{ authMode() === 'login' ? 'A familiar place.' : 'Begin your account.' }}</h2><p class="auth-intro">{{ authMode() === 'login' ? 'Sign in to continue to your orders and saved details.' : 'Create an account to make your next ritual easier.' }}</p><form (ngSubmit)="submitAuth()">@if (authMode() === 'register') { <label class="field">Your name<input name="name" [(ngModel)]="authForm.name" required autocomplete="name"></label> }<label class="field">Email address<input name="email" type="email" [(ngModel)]="authForm.email" required autocomplete="email"></label><label class="field">Password<input name="password" type="password" [(ngModel)]="authForm.password" required minlength="6" autocomplete="current-password"></label><button class="button button-primary full-button" type="submit" [disabled]="submitting()">{{ submitting() ? 'One moment…' : authMode() === 'login' ? 'Sign in' : 'Create account' }} <span>→</span></button></form><button class="auth-switch" (click)="authMode.set(authMode() === 'login' ? 'register' : 'login')">{{ authMode() === 'login' ? 'New to Poojapa? Create an account' : 'Already have an account? Sign in' }}</button></section></div>
+  }
+  @if (toast()) { <div class="toast" role="status">✦ {{ toast() }}</div> }
+</div>
