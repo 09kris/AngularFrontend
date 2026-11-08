@@ -1,13 +1,6 @@
-# PoojapaAngular
+# Madhav Poojapa Angular Store
 
 This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 20.3.3.
-
-## Development server
-
-To start a local development server, run:
-
-```bash
-# Poojapa Store Angular Frontend
 
 Responsive Angular storefront and admin workspace based on the Flutter app in `../frontend`.
 
@@ -28,6 +21,9 @@ The Express API must be running and configured with its database. See `../README
 
 ## Included
 
+- Madhav Poojapa branding and logo
+- Frontend-only English and Hindi interface language selection (saved in the browser)
+- Catalog and account details remain in the language supplied by the existing API
 - Product and category browsing, search, sorting, and product details
 - Customer registration and sign-in with persisted JWT sessions
 - Persistent cart, stock-aware quantities, delivery calculation, and cash-on-delivery checkout
@@ -43,4 +39,3 @@ The frontend integrates with `/api/auth`, `/api/categories`, `/api/products`, `/
 ```powershell
 npm run build
 ```
-
