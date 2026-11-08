@@ -39,3 +39,9 @@ The frontend integrates with `/api/auth`, `/api/categories`, `/api/products`, `/
 ```powershell
 npm run build
 ```
+
+## Deploy to Netlify
+
+Netlify should use `npm run build` as the build command and
+`dist/poojapa-angular/browser` as the publish directory. These settings are also
+defined in `netlify.toml`.
