@@ -191,7 +191,11 @@ const hindiTranslations: Record<string, string> = {
   'Sale price (₹)': 'छूट की कीमत (₹)',
   'Stock quantity': 'स्टॉक की मात्रा',
   Unit: 'इकाई',
-  'Image URL': 'छवि का URL',
+  'Product photos': 'उत्पाद की तस्वीरें',
+  'Select up to 10 photos from your device.': 'अपने डिवाइस से अधिकतम 10 तस्वीरें चुनें।',
+  'Remove photo': 'तस्वीर हटाएँ',
+  'View photo': 'तस्वीर देखें',
+  'Uploading…': 'अपलोड हो रहा है…',
   Description: 'विवरण',
   'Feature in the store': 'स्टोर में विशेष रूप से दिखाएँ',
   'Saving…': 'सेव हो रहा है…',
@@ -221,7 +225,7 @@ interface ProductDraft {
   discount_price: number | null;
   stock_quantity: number;
   unit: string;
-  image_url: string;
+  image_urls: string[];
   is_featured: boolean;
 }
 
@@ -236,6 +240,8 @@ export class App implements OnInit {
   readonly authMode = signal<AuthMode>('login');
   readonly showAuth = signal(false);
   readonly selectedProduct = signal<Product | null>(null);
+  readonly selectedProductImageIndex = signal(0);
+  readonly uploadingProductImages = signal(false);
   readonly categories = signal<Category[]>([]);
   readonly products = signal<Product[]>([]);
   readonly orders = signal<Order[]>([]);
@@ -483,7 +489,12 @@ export class App implements OnInit {
   }
 
   createProduct(): void {
-    if (!this.productDraft.category_id || !this.productDraft.name.trim() || !this.productDraft.price) return;
+    if (
+      this.uploadingProductImages() ||
+      !this.productDraft.category_id ||
+      !this.productDraft.name.trim() ||
+      !this.productDraft.price
+    ) return;
     this.submitting.set(true);
     this.api.createProduct({
       ...this.productDraft,
@@ -491,7 +502,7 @@ export class App implements OnInit {
       name: this.productDraft.name.trim(),
       price: this.productDraft.price!,
       description: this.productDraft.description.trim(),
-      image_url: this.productDraft.image_url.trim(),
+      image_urls: this.productDraft.image_urls,
       discount_price: this.productDraft.discount_price || null,
       is_active: true,
     }).subscribe({
@@ -506,6 +517,46 @@ export class App implements OnInit {
         this.submitting.set(false);
       },
     });
+  }
+
+  onProductImagesSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const files = Array.from(input.files ?? []);
+    input.value = '';
+    if (!files.length) return;
+
+    if (files.some((file) => !file.type.startsWith('image/'))) {
+      this.error.set('Please choose image files only.');
+      return;
+    }
+    if (this.productDraft.image_urls.length + files.length > 10) {
+      this.error.set('A product can have up to 10 images.');
+      return;
+    }
+
+    this.uploadingProductImages.set(true);
+    this.api.uploadImages(files).subscribe({
+      next: (response) => {
+        this.productDraft.image_urls = [
+          ...this.productDraft.image_urls,
+          ...(response.image_urls ?? []),
+        ];
+        this.uploadingProductImages.set(false);
+      },
+      error: (error: unknown) => {
+        this.error.set(this.errorMessage(error, 'Could not upload the selected images.'));
+        this.uploadingProductImages.set(false);
+      },
+    });
+  }
+
+  removeProductImage(index: number): void {
+    this.productDraft.image_urls = this.productDraft.image_urls.filter((_, imageIndex) => imageIndex !== index);
+  }
+
+  openProduct(product: Product): void {
+    this.selectedProductImageIndex.set(0);
+    this.selectedProduct.set(product);
   }
 
   deleteProduct(product: Product): void {
@@ -527,10 +578,19 @@ export class App implements OnInit {
   }
 
   imageUrl(product: Product): string {
-    const url = product.image_url?.trim();
+    const url = (product.image_urls?.[0] || product.image_url)?.trim();
     if (!url) return '';
     if (/^https?:\/\//i.test(url)) return url;
     return `${this.api.baseUrl}/${url.replace(/^\/+/, '')}`;
+  }
+
+  productImageUrl(url: string): string {
+    if (/^https?:\/\//i.test(url)) return url;
+    return `${this.api.baseUrl}/${url.replace(/^\/+/, '')}`;
+  }
+
+  imageUrls(product: Product): string[] {
+    return product.image_urls?.length ? product.image_urls : product.image_url ? [product.image_url] : [];
   }
 
   hideImage(event: Event): void {
@@ -591,6 +651,6 @@ export class App implements OnInit {
   }
 
   private emptyProductDraft(): ProductDraft {
-    return { category_id: null, name: '', description: '', price: null, discount_price: null, stock_quantity: 0, unit: 'piece', image_url: '', is_featured: false };
+    return { category_id: null, name: '', description: '', price: null, discount_price: null, stock_quantity: 0, unit: 'piece', image_urls: [], is_featured: false };
   }
 }

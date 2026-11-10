@@ -27,6 +27,7 @@ export interface Product {
   stock_quantity: number;
   unit?: string;
   image_url?: string;
+  image_urls?: string[];
   is_featured?: boolean | number;
   is_active?: boolean | number;
 }
@@ -156,6 +157,16 @@ export class StoreApiService {
 
   createProduct(product: Partial<Product> & { category_id: number; name: string; price: number }): Observable<{ product: Product }> {
     return this.http.post<{ product: Product }>(this.url('/api/products'), product, { headers: this.authHeaders() });
+  }
+
+  uploadImages(files: File[]): Observable<{ image_urls: string[] }> {
+    const formData = new FormData();
+    files.forEach((file) => formData.append('images', file, file.name));
+    return this.http.post<{ image_urls: string[] }>(
+      this.url('/api/admin/upload'),
+      formData,
+      { headers: this.authHeaders() },
+    );
   }
 
   deleteProduct(id: number): Observable<unknown> {
