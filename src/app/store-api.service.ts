@@ -155,8 +155,23 @@ export class StoreApiService {
     return this.http.put(this.url(`/api/orders/admin/${id}/status`), { order_status }, { headers: this.authHeaders() });
   }
 
-  createProduct(product: Partial<Product> & { category_id: number; name: string; price: number }): Observable<{ product: Product }> {
-    return this.http.post<{ product: Product }>(this.url('/api/products'), product, { headers: this.authHeaders() });
+  createProduct(
+    product: Partial<Product> & { category_id: number; name: string; price: number },
+    images: File[] = [],
+  ): Observable<{ product: Product }> {
+    const formData = new FormData();
+    for (const [key, value] of Object.entries(product)) {
+      if (value !== undefined && value !== null) {
+        formData.append(key, String(value));
+      }
+    }
+    images.forEach((image) => formData.append('images', image, image.name));
+
+    return this.http.post<{ product: Product }>(
+      this.url('/api/products'),
+      formData,
+      { headers: this.authHeaders() },
+    );
   }
 
   uploadImages(files: File[]): Observable<{ image_urls: string[] }> {

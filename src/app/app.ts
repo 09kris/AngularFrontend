@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, OnInit, signal } from '@angular/core';
+import { Component, computed, OnDestroy, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ApiError, Category, DashboardStats, Order, Product, ShippingDetails, StoreApiService, StoreUser } from './store-api.service';
 
@@ -225,7 +225,7 @@ interface ProductDraft {
   discount_price: number | null;
   stock_quantity: number;
   unit: string;
-  image_urls: string[];
+  images: File[];
   is_featured: boolean;
 }
 
@@ -234,14 +234,14 @@ interface ProductDraft {
   imports: [CommonModule, FormsModule],
   templateUrl: './storefront-view.html',
 })
-export class App implements OnInit {
+export class App implements OnDestroy, OnInit {
   readonly language = signal<StoreLanguage>(this.readLanguage());
   readonly view = signal<StoreView>('store');
   readonly authMode = signal<AuthMode>('login');
   readonly showAuth = signal(false);
   readonly selectedProduct = signal<Product | null>(null);
   readonly selectedProductImageIndex = signal(0);
-  readonly uploadingProductImages = signal(false);
+  productImagePreviews: string[] = [];
   readonly categories = signal<Category[]>([]);
   readonly products = signal<Product[]>([]);
   readonly orders = signal<Order[]>([]);
@@ -284,6 +284,11 @@ export class App implements OnInit {
         error: () => this.logout(false),
       });
     }
+  }
+
+  ngOnDestroy(): void {
+    this.clearProductImagePreviews();
+    window.clearTimeout(this.searchTimer);
   }
 
   setLanguage(language: StoreLanguage): void {
@@ -489,24 +494,32 @@ export class App implements OnInit {
   }
 
   createProduct(): void {
-    if (
-      this.uploadingProductImages() ||
-      !this.productDraft.category_id ||
-      !this.productDraft.name.trim() ||
-      !this.productDraft.price
-    ) return;
+    if (this.submitting()) return;
+    if (!this.productDraft.category_id || !this.productDraft.name.trim() || this.productDraft.price === null || this.productDraft.price <= 0) {
+      this.error.set('Enter a product name, category, and price greater than zero.');
+      return;
+    }
+
+    if (this.productDraft.discount_price !== null && this.productDraft.discount_price >= this.productDraft.price) {
+      this.error.set('The sale price must be lower than the regular price.');
+      return;
+    }
+
     this.submitting.set(true);
+    this.error.set('');
     this.api.createProduct({
-      ...this.productDraft,
-      category_id: this.productDraft.category_id!,
+      category_id: this.productDraft.category_id,
       name: this.productDraft.name.trim(),
-      price: this.productDraft.price!,
+      price: this.productDraft.price,
       description: this.productDraft.description.trim(),
-      image_urls: this.productDraft.image_urls,
       discount_price: this.productDraft.discount_price || null,
+      stock_quantity: this.productDraft.stock_quantity,
+      unit: this.productDraft.unit.trim() || 'piece',
+      is_featured: this.productDraft.is_featured,
       is_active: true,
-    }).subscribe({
+    }, this.productDraft.images).subscribe({
       next: () => {
+        this.clearProductImagePreviews();
         this.productDraft = this.emptyProductDraft();
         this.submitting.set(false);
         this.notify('Product added to the catalog.');
@@ -523,35 +536,35 @@ export class App implements OnInit {
     const input = event.target as HTMLInputElement;
     const files = Array.from(input.files ?? []);
     input.value = '';
+    this.error.set('');
     if (!files.length) return;
 
     if (files.some((file) => !file.type.startsWith('image/'))) {
       this.error.set('Please choose image files only.');
       return;
     }
-    if (this.productDraft.image_urls.length + files.length > 10) {
+    if (files.some((file) => file.size > 5 * 1024 * 1024)) {
+      this.error.set('Each product photo must be 5 MB or smaller.');
+      return;
+    }
+    if (this.productDraft.images.length + files.length > 10) {
       this.error.set('A product can have up to 10 images.');
       return;
     }
 
-    this.uploadingProductImages.set(true);
-    this.api.uploadImages(files).subscribe({
-      next: (response) => {
-        this.productDraft.image_urls = [
-          ...this.productDraft.image_urls,
-          ...(response.image_urls ?? []),
-        ];
-        this.uploadingProductImages.set(false);
-      },
-      error: (error: unknown) => {
-        this.error.set(this.errorMessage(error, 'Could not upload the selected images.'));
-        this.uploadingProductImages.set(false);
-      },
-    });
+    this.productDraft.images = [...this.productDraft.images, ...files];
+    this.productImagePreviews = [
+      ...this.productImagePreviews,
+      ...files.map((file) => URL.createObjectURL(file)),
+    ];
   }
 
   removeProductImage(index: number): void {
-    this.productDraft.image_urls = this.productDraft.image_urls.filter((_, imageIndex) => imageIndex !== index);
+    const preview = this.productImagePreviews[index];
+    if (!preview) return;
+    URL.revokeObjectURL(preview);
+    this.productImagePreviews = this.productImagePreviews.filter((_, imageIndex) => imageIndex !== index);
+    this.productDraft.images = this.productDraft.images.filter((_, imageIndex) => imageIndex !== index);
   }
 
   openProduct(product: Product): void {
@@ -651,6 +664,11 @@ export class App implements OnInit {
   }
 
   private emptyProductDraft(): ProductDraft {
-    return { category_id: null, name: '', description: '', price: null, discount_price: null, stock_quantity: 0, unit: 'piece', image_urls: [], is_featured: false };
+    return { category_id: null, name: '', description: '', price: null, discount_price: null, stock_quantity: 0, unit: 'piece', images: [], is_featured: false };
+  }
+
+  private clearProductImagePreviews(): void {
+    this.productImagePreviews.forEach((preview) => URL.revokeObjectURL(preview));
+    this.productImagePreviews = [];
   }
 }
