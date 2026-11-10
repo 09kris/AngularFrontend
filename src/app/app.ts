@@ -3,7 +3,7 @@ import { Component, computed, OnDestroy, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ApiError, Category, DashboardStats, Order, Product, ShippingDetails, StoreApiService, StoreUser } from './store-api.service';
 
-type StoreView = 'store' | 'categories' | 'cart' | 'checkout' | 'orders' | 'profile' | 'admin' | 'admin-products' | 'admin-orders';
+type StoreView = 'store' | 'categories' | 'cart' | 'checkout' | 'orders' | 'profile' | 'admin' | 'admin-products' | 'admin-orders' | 'admin-categories';
 type AuthMode = 'login' | 'register';
 type StoreLanguage = 'en' | 'hi';
 
@@ -150,6 +150,26 @@ const hindiTranslations: Record<string, string> = {
   'Sales and inventory, at a glance.': 'बिक्री और स्टॉक का सारांश।',
   'Manage products': 'उत्पाद प्रबंधित करें',
   'Manage orders': 'ऑर्डर प्रबंधित करें',
+  'Manage categories': 'श्रेणियाँ प्रबंधित करें',
+  'Category name': 'श्रेणी का नाम',
+  'Category description': 'श्रेणी का विवरण',
+  'Image URL': 'छवि URL',
+  'Save category': 'श्रेणी सहेजें',
+  'Add category': 'श्रेणी जोड़ें',
+  'Edit category': 'श्रेणी संपादित करें',
+  'Active in store': 'स्टोर में सक्रिय',
+  'Delete category': 'श्रेणी हटाएँ',
+  'Parent category (optional)': 'मुख्य श्रेणी (वैकल्पिक)',
+  'Top-level category': 'मुख्य श्रेणी',
+  'Subcategories': 'उपश्रेणियाँ',
+  'Category or subcategory': 'श्रेणी या उपश्रेणी',
+  'Choose category': 'श्रेणी चुनें',
+  'Choose a parent or top-level category.': 'मुख्य श्रेणी चुनें।',
+  'No categories to manage yet.': 'अभी प्रबंधित करने के लिए कोई श्रेणी नहीं है।',
+  'Category saved.': 'श्रेणी सहेजी गई।',
+  'Category deleted.': 'श्रेणी हटा दी गई।',
+  'Cancel order': 'ऑर्डर रद्द करें',
+  'Cancelling…': 'रद्द किया जा रहा है…',
   'TOTAL REVENUE': 'कुल आय',
   'Across non-cancelled orders': 'रद्द न किए गए ऑर्डर',
   'TOTAL ORDERS': 'कुल ऑर्डर',
@@ -243,6 +263,7 @@ export class App implements OnDestroy, OnInit {
   readonly selectedProductImageIndex = signal(0);
   productImagePreviews: string[] = [];
   readonly categories = signal<Category[]>([]);
+  readonly adminCategories = signal<Category[]>([]);
   readonly products = signal<Product[]>([]);
   readonly orders = signal<Order[]>([]);
   readonly adminOrders = signal<Order[]>([]);
@@ -251,6 +272,7 @@ export class App implements OnDestroy, OnInit {
   readonly cart = signal<CartLine[]>(this.readCart());
   readonly loading = signal(false);
   readonly submitting = signal(false);
+  readonly cancellingOrderIds = signal<number[]>([]);
   readonly error = signal('');
   readonly toast = signal('');
   readonly search = signal('');
@@ -268,6 +290,15 @@ export class App implements OnDestroy, OnInit {
     shipping_state: '', shipping_pincode: '', payment_method: 'Cash on Delivery', notes: '',
   };
   productDraft: ProductDraft = this.emptyProductDraft();
+  categoryDraft = {
+    id: null as number | null,
+    name: '',
+    slug: '',
+    description: '',
+    image_url: '',
+    is_active: true,
+    parent_category_id: null as number | null,
+  };
   private searchTimer?: number;
 
   constructor(private readonly api: StoreApiService) {}
@@ -321,6 +352,7 @@ export class App implements OnDestroy, OnInit {
     if (view === 'orders') this.loadOrders();
     if (view === 'admin') this.loadDashboard();
     if (view === 'admin-orders') this.loadAdminOrders();
+    if (view === 'admin-categories') this.loadAdminCategories();
     if (view === 'checkout' && !this.user()) this.openAuth('login');
   }
 
@@ -363,6 +395,26 @@ export class App implements OnDestroy, OnInit {
     this.selectedCategoryId.set(categoryId);
     this.view.set('store');
     this.loadProducts();
+  }
+
+  rootCategories(): Category[] {
+    return this.categories().filter((category) => category.parent_category_id == null);
+  }
+
+  adminRootCategories(): Category[] {
+    return this.adminCategories().filter((category) => category.parent_category_id == null);
+  }
+
+  subcategories(parentId: number): Category[] {
+    return this.categories().filter(
+      (category) => Number(category.parent_category_id) === parentId,
+    );
+  }
+
+  categoryLabel(category: Category): string {
+    return category.parent_category_name
+      ? `${category.parent_category_name} / ${category.name}`
+      : category.name;
   }
 
   openAuth(mode: AuthMode): void {
@@ -463,6 +515,109 @@ export class App implements OnDestroy, OnInit {
     this.api.myOrders().subscribe({
       next: (response) => this.orders.set(response.orders ?? []),
       error: (error: unknown) => this.error.set(this.errorMessage(error, 'Could not load your orders.')),
+    });
+  }
+
+  cancelOrder(order: Order): void {
+    if (!['pending', 'confirmed', 'processing'].includes(order.order_status)) return;
+    if (!window.confirm(`Cancel order ${order.order_number}?`)) return;
+    this.cancellingOrderIds.update((ids) => ids.includes(order.id) ? ids : [...ids, order.id]);
+    this.api.cancelOrder(order.id).subscribe({
+      next: () => {
+        this.notify(`Order ${order.order_number} cancelled.`);
+        this.loadOrders();
+        this.cancellingOrderIds.update((ids) => ids.filter((id) => id !== order.id));
+      },
+      error: (error: unknown) => {
+        this.error.set(this.errorMessage(error, 'Could not cancel this order.'));
+        this.cancellingOrderIds.update((ids) => ids.filter((id) => id !== order.id));
+      },
+    });
+  }
+
+  loadAdminCategories(): void {
+    this.api.adminCategories().subscribe({
+      next: (response) => this.adminCategories.set(response.categories ?? []),
+      error: (error: unknown) => this.error.set(this.errorMessage(error, 'Could not load categories.')),
+    });
+  }
+
+  editCategory(category: Category): void {
+    this.categoryDraft = {
+      id: category.id,
+      name: category.name,
+      slug: category.slug ?? '',
+      description: category.description ?? '',
+      image_url: category.image_url ?? '',
+      is_active: category.is_active === true || category.is_active === 1,
+      parent_category_id: category.parent_category_id ?? null,
+    };
+  }
+
+  resetCategoryDraft(): void {
+    this.categoryDraft = {
+      id: null,
+      name: '',
+      slug: '',
+      description: '',
+      image_url: '',
+      is_active: true,
+      parent_category_id: null,
+    };
+  }
+
+  saveCategory(): void {
+    if (this.submitting()) return;
+    const name = this.categoryDraft.name.trim();
+    if (!name) {
+      this.error.set('Enter a category name.');
+      return;
+    }
+
+    const slugPart = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const parent = this.categories().find(
+      (category) => category.id === this.categoryDraft.parent_category_id,
+    );
+    const slug = this.categoryDraft.slug.trim() ||
+      [parent?.slug, slugPart].filter(Boolean).join('-');
+    const payload = {
+      name,
+      slug,
+      description: this.categoryDraft.description.trim(),
+      image_url: this.categoryDraft.image_url.trim(),
+      is_active: this.categoryDraft.is_active,
+      parent_category_id: this.categoryDraft.parent_category_id,
+    };
+    this.submitting.set(true);
+    this.error.set('');
+    const request = this.categoryDraft.id
+      ? this.api.updateCategory(this.categoryDraft.id, payload)
+      : this.api.createCategory(payload);
+    request.subscribe({
+      next: () => {
+        this.submitting.set(false);
+        this.resetCategoryDraft();
+        this.notify('Category saved.');
+        this.loadAdminCategories();
+        this.loadCatalog();
+      },
+      error: (error: unknown) => {
+        this.error.set(this.errorMessage(error, 'Could not save category.'));
+        this.submitting.set(false);
+      },
+    });
+  }
+
+  deleteCategory(category: Category): void {
+    if (!window.confirm(`Delete category "${category.name}"?`)) return;
+    this.api.deleteCategory(category.id).subscribe({
+      next: () => {
+        this.notify('Category deleted.');
+        if (this.categoryDraft.id === category.id) this.resetCategoryDraft();
+        this.loadAdminCategories();
+        this.loadCatalog();
+      },
+      error: (error: unknown) => this.error.set(this.errorMessage(error, 'Could not delete category.')),
     });
   }
 

@@ -14,6 +14,9 @@ export interface Category {
   description?: string;
   image_url?: string;
   product_count?: number;
+  is_active?: boolean | number;
+  parent_category_id?: number | null;
+  parent_category_name?: string | null;
 }
 
 export interface Product {
@@ -114,6 +117,40 @@ export class StoreApiService {
     return this.http.get<{ categories: Category[] }>(this.url('/api/categories'));
   }
 
+  adminCategories(): Observable<{ categories: Category[] }> {
+    return this.http.get<{ categories: Category[] }>(
+      this.url('/api/categories/admin/all'),
+      { headers: this.authHeaders() },
+    );
+  }
+
+  createCategory(category: {
+    name: string;
+    slug: string;
+    description: string;
+    image_url: string;
+    parent_category_id: number | null;
+    is_active: boolean;
+  }): Observable<{ category: Category }> {
+    return this.http.post<{ category: Category }>(
+      this.url('/api/categories'),
+      category,
+      { headers: this.authHeaders() },
+    );
+  }
+
+  updateCategory(id: number, category: Partial<Category>): Observable<{ category: Category }> {
+    return this.http.put<{ category: Category }>(
+      this.url(`/api/categories/${id}`),
+      category,
+      { headers: this.authHeaders() },
+    );
+  }
+
+  deleteCategory(id: number): Observable<unknown> {
+    return this.http.delete(this.url(`/api/categories/${id}`), { headers: this.authHeaders() });
+  }
+
   products(filters: { search?: string; category_id?: number | null; sort?: string; limit?: number }): Observable<{ products: Product[] }> {
     let params = new HttpParams();
     if (filters.search) params = params.set('search', filters.search);
@@ -153,6 +190,10 @@ export class StoreApiService {
 
   updateOrderStatus(id: number, order_status: string): Observable<unknown> {
     return this.http.put(this.url(`/api/orders/admin/${id}/status`), { order_status }, { headers: this.authHeaders() });
+  }
+
+  cancelOrder(id: number): Observable<unknown> {
+    return this.http.put(this.url(`/api/orders/${id}/cancel`), {}, { headers: this.authHeaders() });
   }
 
   createProduct(
