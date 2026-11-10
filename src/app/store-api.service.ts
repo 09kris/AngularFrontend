@@ -17,12 +17,16 @@ export interface Category {
   is_active?: boolean | number;
   parent_category_id?: number | null;
   parent_category_name?: string | null;
+  category_id?: number;
+  subcategories?: Category[];
 }
 
 export interface Product {
   id: number;
   category_id: number;
+  subcategory_id?: number | null;
   category_name?: string;
+  subcategory_name?: string | null;
   name: string;
   description?: string;
   price: number;
@@ -129,7 +133,6 @@ export class StoreApiService {
     slug: string;
     description: string;
     image_url: string;
-    parent_category_id: number | null;
     is_active: boolean;
   }): Observable<{ category: Category }> {
     return this.http.post<{ category: Category }>(
@@ -137,6 +140,32 @@ export class StoreApiService {
       category,
       { headers: this.authHeaders() },
     );
+  }
+
+  createSubcategory(categoryId: number, subcategory: {
+    name: string;
+    slug: string;
+    description: string;
+    image_url: string;
+    is_active: boolean;
+  }): Observable<{ subcategory: Category }> {
+    return this.http.post<{ subcategory: Category }>(
+      this.url(`/api/categories/${categoryId}/subcategories`),
+      subcategory,
+      { headers: this.authHeaders() },
+    );
+  }
+
+  updateSubcategory(id: number, subcategory: Partial<Category>): Observable<{ subcategory: Category }> {
+    return this.http.put<{ subcategory: Category }>(
+      this.url(`/api/categories/subcategories/${id}`),
+      subcategory,
+      { headers: this.authHeaders() },
+    );
+  }
+
+  deleteSubcategory(id: number): Observable<unknown> {
+    return this.http.delete(this.url(`/api/categories/subcategories/${id}`), { headers: this.authHeaders() });
   }
 
   updateCategory(id: number, category: Partial<Category>): Observable<{ category: Category }> {
@@ -151,10 +180,11 @@ export class StoreApiService {
     return this.http.delete(this.url(`/api/categories/${id}`), { headers: this.authHeaders() });
   }
 
-  products(filters: { search?: string; category_id?: number | null; sort?: string; limit?: number }): Observable<{ products: Product[] }> {
+  products(filters: { search?: string; category_id?: number | null; subcategory_id?: number | null; sort?: string; limit?: number }): Observable<{ products: Product[] }> {
     let params = new HttpParams();
     if (filters.search) params = params.set('search', filters.search);
     if (filters.category_id) params = params.set('category_id', filters.category_id);
+    if (filters.subcategory_id) params = params.set('subcategory_id', filters.subcategory_id);
     if (filters.sort) params = params.set('sort', filters.sort);
     if (filters.limit) params = params.set('limit', filters.limit);
     return this.http.get<{ products: Product[] }>(this.url('/api/products'), { params });

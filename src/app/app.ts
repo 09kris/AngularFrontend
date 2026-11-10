@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component, computed, OnDestroy, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { Observable } from 'rxjs';
 import { ApiError, Category, DashboardStats, Order, Product, ShippingDetails, StoreApiService, StoreUser } from './store-api.service';
 
 type StoreView = 'store' | 'categories' | 'cart' | 'checkout' | 'orders' | 'profile' | 'admin' | 'admin-products' | 'admin-orders' | 'admin-categories';
@@ -239,6 +240,7 @@ interface CartLine {
 
 interface ProductDraft {
   category_id: number | null;
+  subcategory_id: number | null;
   name: string;
   description: string;
   price: number | null;
@@ -278,6 +280,7 @@ export class App implements OnDestroy, OnInit {
   readonly search = signal('');
   readonly sort = signal('featured');
   readonly selectedCategoryId = signal<number | null>(null);
+  readonly selectedSubcategoryId = signal<number | null>(null);
   readonly isAdmin = computed(() => this.user()?.role === 'admin');
   readonly cartCount = computed(() => this.cart().reduce((sum, line) => sum + line.quantity, 0));
   readonly subtotal = computed(() => this.cart().reduce((sum, line) => sum + this.priceOf(line.product) * line.quantity, 0));
@@ -298,6 +301,7 @@ export class App implements OnDestroy, OnInit {
     image_url: '',
     is_active: true,
     parent_category_id: null as number | null,
+    record_type: 'category' as 'category' | 'subcategory',
   };
   private searchTimer?: number;
 
@@ -371,6 +375,7 @@ export class App implements OnDestroy, OnInit {
     this.api.products({
       search: this.search().trim(),
       category_id: this.selectedCategoryId(),
+      subcategory_id: this.selectedSubcategoryId(),
       sort: this.sort() === 'featured' ? undefined : this.sort(),
       limit: 100,
     }).subscribe({
@@ -391,30 +396,27 @@ export class App implements OnDestroy, OnInit {
     this.searchTimer = window.setTimeout(() => this.loadProducts(), 250);
   }
 
-  selectCategory(categoryId: number | null): void {
+  selectCategory(categoryId: number | null, subcategoryId: number | null = null): void {
     this.selectedCategoryId.set(categoryId);
+    this.selectedSubcategoryId.set(subcategoryId);
     this.view.set('store');
     this.loadProducts();
   }
 
   rootCategories(): Category[] {
-    return this.categories().filter((category) => category.parent_category_id == null);
+    return this.categories();
   }
 
   adminRootCategories(): Category[] {
-    return this.adminCategories().filter((category) => category.parent_category_id == null);
+    return this.adminCategories();
   }
 
   subcategories(parentId: number): Category[] {
-    return this.categories().filter(
-      (category) => Number(category.parent_category_id) === parentId,
-    );
+    return this.categories().find((category) => category.id === parentId)?.subcategories ?? [];
   }
 
   categoryLabel(category: Category): string {
-    return category.parent_category_name
-      ? `${category.parent_category_name} / ${category.name}`
-      : category.name;
+    return category.name;
   }
 
   openAuth(mode: AuthMode): void {
@@ -550,7 +552,8 @@ export class App implements OnDestroy, OnInit {
       description: category.description ?? '',
       image_url: category.image_url ?? '',
       is_active: category.is_active === true || category.is_active === 1,
-      parent_category_id: category.parent_category_id ?? null,
+      parent_category_id: category.category_id ?? null,
+      record_type: category.category_id ? 'subcategory' : 'category',
     };
   }
 
@@ -563,6 +566,7 @@ export class App implements OnDestroy, OnInit {
       image_url: '',
       is_active: true,
       parent_category_id: null,
+      record_type: 'category',
     };
   }
 
@@ -575,7 +579,7 @@ export class App implements OnDestroy, OnInit {
     }
 
     const slugPart = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-    const parent = this.categories().find(
+    const parent = this.adminCategories().find(
       (category) => category.id === this.categoryDraft.parent_category_id,
     );
     const slug = this.categoryDraft.slug.trim() ||
@@ -586,13 +590,24 @@ export class App implements OnDestroy, OnInit {
       description: this.categoryDraft.description.trim(),
       image_url: this.categoryDraft.image_url.trim(),
       is_active: this.categoryDraft.is_active,
-      parent_category_id: this.categoryDraft.parent_category_id,
     };
     this.submitting.set(true);
     this.error.set('');
-    const request = this.categoryDraft.id
-      ? this.api.updateCategory(this.categoryDraft.id, payload)
-      : this.api.createCategory(payload);
+    const isSubcategory = this.categoryDraft.record_type === 'subcategory';
+    const request: Observable<unknown> | null = isSubcategory
+      ? this.categoryDraft.id
+        ? this.api.updateSubcategory(this.categoryDraft.id, payload)
+        : this.categoryDraft.parent_category_id
+          ? this.api.createSubcategory(this.categoryDraft.parent_category_id, payload)
+          : null
+      : this.categoryDraft.id
+        ? this.api.updateCategory(this.categoryDraft.id, payload)
+        : this.api.createCategory(payload);
+    if (!request) {
+      this.error.set('Choose a category for this subcategory.');
+      this.submitting.set(false);
+      return;
+    }
     request.subscribe({
       next: () => {
         this.submitting.set(false);
@@ -610,7 +625,10 @@ export class App implements OnDestroy, OnInit {
 
   deleteCategory(category: Category): void {
     if (!window.confirm(`Delete category "${category.name}"?`)) return;
-    this.api.deleteCategory(category.id).subscribe({
+    const request = category.category_id
+      ? this.api.deleteSubcategory(category.id)
+      : this.api.deleteCategory(category.id);
+    request.subscribe({
       next: () => {
         this.notify('Category deleted.');
         if (this.categoryDraft.id === category.id) this.resetCategoryDraft();
@@ -664,6 +682,7 @@ export class App implements OnDestroy, OnInit {
     this.error.set('');
     this.api.createProduct({
       category_id: this.productDraft.category_id,
+      subcategory_id: this.productDraft.subcategory_id,
       name: this.productDraft.name.trim(),
       price: this.productDraft.price,
       description: this.productDraft.description.trim(),
@@ -819,7 +838,7 @@ export class App implements OnDestroy, OnInit {
   }
 
   private emptyProductDraft(): ProductDraft {
-    return { category_id: null, name: '', description: '', price: null, discount_price: null, stock_quantity: 0, unit: 'piece', images: [], is_featured: false };
+    return { category_id: null, subcategory_id: null, name: '', description: '', price: null, discount_price: null, stock_quantity: 0, unit: 'piece', images: [], is_featured: false };
   }
 
   private clearProductImagePreviews(): void {
